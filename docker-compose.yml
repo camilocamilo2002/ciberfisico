@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  estanque-agua:
+    build: 
+      context: ./estanque-agua
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY app.py .
+        CMD ["python", "app.py"]
+    ports:
+      - "5000:5000"
+
+  plc-central:
+    build:
+      context: ./plc-central
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY plc.py .
+        CMD ["python", "plc.py"]
+    ports:
+      - "502:502"
+
+  sensor-nivel-estanque:
+    build:
+      context: ./sensor-nivel-estanque
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY sensor.py .
+        CMD ["python", "sensor.py"]
+    depends_on:
+      - estanque-agua
+      - plc-central
+
+  actuador-bomba-agua:
+    build:
+      context: ./actuador-bomba-agua
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY actuador.py .
+        CMD ["python", "actuador.py"]
+    depends_on:
+      - estanque-agua
+      - plc-central
+
+  broker-mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    command: mosquitto -c /mosquitto-no-auth.conf
+    volumes:
+      - type: bind
+        source: ./mosquitto.conf
+        target: /mosquitto-no-auth.conf
+
+  gateway-borde:
+    build:
+      context: ./gateway-borde
+      dockerfile_inline: |
+        FROM python:3.9-slim
+        WORKDIR /app
+        COPY requirements.txt .
+        RUN pip install -r requirements.txt
+        COPY gateway.py .
+        CMD ["python", "gateway.py"]
+    depends_on:
+      - plc-central
+      - broker-mqtt
