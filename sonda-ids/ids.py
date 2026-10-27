@@ -1,22 +1,28 @@
 import sys
-from scapy.all import sniff, IP, TCP
+from scapy.all import sniff, IP, TCP, Raw
 
-print("Sonda IDS Iniciada. Escuchando tráfico Modbus en modo promiscuo...")
+print("Sonda IDS Iniciada. Análisis DPI de tramas Modbus en modo promiscuo...")
 
-# IPs permitidas (Sensor, Actuador, Gateway, Panel HMI)
-LISTA_BLANCA = ["192.168.10.12", "192.168.10.13", "192.168.10.21", "192.168.10.30"]
-IP_PLC = "192.168.10.10"
+LISTA_BLANCA_ESCRITURA = ["192.168.10.10", "192.168.10.30"] # Solo PLC y HMI local podrían escribir
+FUNCIONES_ESCRITURA = [5, 6, 15, 16] # Códigos Modbus para forzar bobinas o escribir registros
 
-def detectar_intrusion(paquete):
-    if paquete.haslayer(IP) and paquete.haslayer(TCP):
+def inspeccion_profunda_modbus(paquete):
+    # Verificar si es TCP dirigido al puerto Modbus y si contiene datos crudos (Payload)
+    if paquete.haslayer(IP) and paquete.haslayer(TCP) and paquete.haslayer(Raw):
         ip_origen = paquete[IP].src
-        ip_destino = paquete[IP].dst
         puerto_destino = paquete[TCP].dport
 
-        # Si el tráfico va hacia el PLC en el puerto Modbus (502)
-        if ip_destino == IP_PLC and puerto_destino == 502:
-            if ip_origen not in LISTA_BLANCA:
-                print(f"[*] ALERTA DE SEGURIDAD: Conexión Modbus no autorizada desde IP {ip_origen}")
+        if puerto_destino == 502:
+            payload = paquete[Raw].load
+            # El encabezado MBAP de Modbus TCP tiene 7 bytes. El byte 8 (índice 7) es el Código de Función.
+            if len(payload) >= 8:
+                codigo_funcion = payload[7]
+                
+                # Si el código detectado es de escritura y la IP no está autorizada
+                if codigo_funcion in FUNCIONES_ESCRITURA and ip_origen not in LISTA_BLANCA_ESCRITURA:
+                    print(f"[CRÍTICO] Comando de ESCRITURA no autorizado interceptado:")
+                    print(f" -> IP Atacante: {ip_origen}")
+                    print(f" -> Código de Función Modbus: {codigo_funcion}")
+                    print(f" -> Acción bloqueada/alertada por política IDS.\n")
 
-# Escuchar en la interfaz eth0 sin filtros estrictos de BPF para evitar bloqueos del sistema operativo
-sniff(iface="eth0", prn=detectar_intrusion, store=0)
+sniff(iface="eth0", prn=inspeccion_profunda_modbus, store=0)

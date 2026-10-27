@@ -1,4 +1,4 @@
-```import time
+import time
 import threading
 import logging
 from flask import Flask, jsonify
@@ -29,8 +29,8 @@ def sondeo_local_plc():
     while True:
         try:
             if client.connect():
-                hr = client.read_holding_registers(0, 5)
-                co = client.read_coils(0, 3)
+                hr = client.read_holding_registers(0, count=5, slave=1)
+                co = client.read_coils(0, count=3, slave=1)
 
                 if not hr.isError() and not co.isError():
                     nivel = hr.registers[0]
@@ -101,4 +101,4 @@ def api_hmi():
 if __name__ == "__main__":
     logging.info("=== PANEL-HMI-LOCAL INICIADO (Modbus TCP Cliente + Web Puerto 8080) ===")
     threading.Thread(target=sondeo_local_plc, daemon=True).start()
-    app.run(host="0.0.0.0", port=8080)```
+    app.run(host="0.0.0.0", port=8080)
