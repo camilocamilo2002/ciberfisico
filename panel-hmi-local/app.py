@@ -21,7 +21,7 @@ datos_hmi = {
     "bomba_activa": False,
     "alarma_nivel": False,
     "alarma_cloro": False,
-    "estado_seguridad": "NORMAL"
+    "estado_seguridad": "OPERACION NORMAL"
 }
 
 def sondeo_local_plc():
@@ -29,40 +29,36 @@ def sondeo_local_plc():
     while True:
         try:
             if client.connect():
-                hr = client.read_holding_registers(0, count=5, slave=1)
-                co = client.read_coils(0, count=3, slave=1)
-
-                if not hr.isError() and not co.isError():
+                # Leer HR0 (Nivel), HR1 (Bomba: 0 o 1), HR2 (Cloro * 100)
+                hr = client.read_holding_registers(0, 3)
+                if not hr.isError():
                     nivel = hr.registers[0]
-                    cloro_ppm = hr.registers[1] / 100.0
-                    u_min = hr.registers[2]
-                    u_max = hr.registers[3]
-                    cod_alarma = hr.registers[4]
+                    bomba = bool(hr.registers[1])
+                    cloro_ppm = round(hr.registers[2] / 100.0, 2)
 
-                    bomba = bool(co.bits[0])
-                    al_nivel = bool(co.bits[1])
-                    al_cloro = bool(co.bits[2])
+                    al_nivel = (nivel <= 20) or (nivel >= 90)
+                    al_cloro = (cloro_ppm < 0.2) or (cloro_ppm > 4.0)
 
-                    estados_txt = {
-                        0: "OPERACION NORMAL",
-                        1: "ALERTA SAFETY: NIVEL CRITICO BAJO (<=20%)",
-                        2: "ALERTA SAFETY: NIVEL CRITICO ALTO (>=90%)",
-                        3: "ALERTA QUIMICA: CLORO FUERA DE NORMA"
-                    }
-                    estado_seg = estados_txt.get(cod_alarma, "DESCONOCIDO")
+                    if nivel <= 20:
+                        estado_seg = "ALERTA SAFETY: NIVEL CRITICO BAJO (<=20%)"
+                    elif nivel >= 90:
+                        estado_seg = "ALERTA SAFETY: NIVEL CRITICO ALTO (>=90%)"
+                    elif al_cloro:
+                        estado_seg = f"ALERTA QUIMICA: CLORO FUERA DE NORMA ({cloro_ppm} ppm)"
+                    else:
+                        estado_seg = "OPERACION NORMAL"
 
                     datos_hmi.update({
                         "nivel_agua": nivel,
-                        "cloro_ppm": round(cloro_ppm, 2),
-                        "umbral_min": u_min,
-                        "umbral_max": u_max,
+                        "cloro_ppm": cloro_ppm,
                         "bomba_activa": bomba,
                         "alarma_nivel": al_nivel,
                         "alarma_cloro": al_cloro,
                         "estado_seguridad": estado_seg
                     })
 
-                    barra = "#" * (nivel // 5) + "-" * (20 - (nivel // 5))
+                    bloques = nivel // 5
+                    barra = "#" * bloques + "-" * (20 - bloques)
                     b_txt = "ACTIVA [ON]" if bomba else "INACTIVA [OFF]"
                     logging.info(
                         f"[HMI LOCAL] [{barra}] {nivel}% | Cloro: {cloro_ppm:.2f} ppm | "
@@ -72,7 +68,6 @@ def sondeo_local_plc():
                 logging.warning(f"[HMI LOCAL] Sin conexion Modbus TCP con PLC ({PLC_IP}:{PLC_PORT})")
         except Exception as e:
             logging.warning(f"[HMI LOCAL] Reintentando lectura: {e}")
-
         time.sleep(2)
 
 @app.route('/', methods=['GET'])
@@ -98,7 +93,7 @@ def index_web():
 def api_hmi():
     return jsonify(datos_hmi)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     logging.info("=== PANEL-HMI-LOCAL INICIADO (Modbus TCP Cliente + Web Puerto 8080) ===")
     threading.Thread(target=sondeo_local_plc, daemon=True).start()
     app.run(host="0.0.0.0", port=8080)
