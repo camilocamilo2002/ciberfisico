@@ -5,7 +5,7 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BROKER_IP = "192.168.10.20"
+BROKER_IP = "192.168.20.20"
 aws_ip = os.environ.get("AWS_IP", "127.0.0.1")
 AWS_EC2_URL = f"https://{aws_ip}:1880/api/telemetria"
 

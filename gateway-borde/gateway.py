@@ -4,7 +4,7 @@ from pymodbus.client import ModbusTcpClient
 import paho.mqtt.client as mqtt
 
 PLC_IP = "192.168.10.10"
-BROKER_IP = "192.168.10.20"
+BROKER_IP = "192.168.20.20"
 
 modbus_client = ModbusTcpClient(PLC_IP, port=502)
 mqtt_client = mqtt.Client("gateway_borde")
