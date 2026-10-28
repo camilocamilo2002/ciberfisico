@@ -7,7 +7,7 @@ PLC_IP = "192.168.10.10"
 BROKER_IP = "192.168.20.20"
 
 modbus_client = ModbusTcpClient(PLC_IP, port=502)
-mqtt_client = mqtt.Client("gateway_borde")
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "gateway_borde")
 
 conectado_mqtt = False
 while not conectado_mqtt:
@@ -24,7 +24,7 @@ while True:
     try:
         if modbus_client.connect():
             # Leer HR0 (Nivel), HR1 (Bomba), HR2 (Cloro * 100)
-            rr = modbus_client.read_holding_registers(0, 3)
+            rr = modbus_client.read_holding_registers(0, count=3, slave=1)
             if not rr.isError():
                 nivel = rr.registers[0]
                 bomba = rr.registers[1]

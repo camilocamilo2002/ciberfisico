@@ -30,7 +30,7 @@ def sondeo_local_plc():
         try:
             if client.connect():
                 # Leer HR0 (Nivel), HR1 (Bomba: 0 o 1), HR2 (Cloro * 100)
-                hr = client.read_holding_registers(0, 3)
+                hr = client.read_holding_registers(0, count=3, slave=1)
                 if not hr.isError():
                     nivel = hr.registers[0]
                     bomba = bool(hr.registers[1])
